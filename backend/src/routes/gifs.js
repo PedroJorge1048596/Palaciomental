@@ -4,22 +4,21 @@ import { requireAuth } from "../auth.js";
 const router = Router();
 router.use(requireAuth);
 
-// Chave pública de testes do Tenor (limitada e compartilhada — troque pela sua em
-// https://tenor.com/gifapi e defina TENOR_API_KEY no ambiente antes de ir pra produção).
-const TENOR_API_KEY = process.env.TENOR_API_KEY || "LIVDSRZULELA";
-const TENOR_CLIENT_KEY = "palacio_mental";
+// Chave pública de testes do Giphy (limitada e compartilhada — troque pela sua em
+// https://developers.giphy.com/dashboard/ e defina GIPHY_API_KEY no ambiente antes de ir pra produção).
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY || "dc6zaTOxFJmzC";
 
 function mapResults(data) {
-  return (data.results || []).map((g) => {
-    const gifMedia = g.media_formats?.gif || g.media_formats?.mediumgif || g.media_formats?.tinygif;
-    const previewMedia = g.media_formats?.tinygif || g.media_formats?.nanogif || gifMedia;
+  return (data.data || []).map((g) => {
+    const gifMedia = g.images?.original || g.images?.downsized;
+    const previewMedia = g.images?.fixed_width || g.images?.fixed_width_small || gifMedia;
     return {
       id: g.id,
-      title: g.content_description || g.title || "gif",
+      title: g.title || "gif",
       url: gifMedia?.url,
       previewUrl: previewMedia?.url || gifMedia?.url,
-      width: gifMedia?.dims?.[0],
-      height: gifMedia?.dims?.[1],
+      width: gifMedia?.width ? Number(gifMedia.width) : undefined,
+      height: gifMedia?.height ? Number(gifMedia.height) : undefined,
     };
   }).filter((g) => g.url);
 }
@@ -29,17 +28,16 @@ router.get("/search", async (req, res) => {
   if (!q) return res.json({ results: [] });
 
   try {
-    const url = new URL("https://tenor.googleapis.com/v2/search");
+    const url = new URL("https://api.giphy.com/v1/gifs/search");
     url.searchParams.set("q", q);
-    url.searchParams.set("key", TENOR_API_KEY);
-    url.searchParams.set("client_key", TENOR_CLIENT_KEY);
+    url.searchParams.set("api_key", GIPHY_API_KEY);
     url.searchParams.set("limit", "24");
-    url.searchParams.set("media_filter", "gif,tinygif,nanogif");
-    url.searchParams.set("contentfilter", "medium");
+    url.searchParams.set("rating", "pg-13");
+    url.searchParams.set("lang", "pt");
 
-    const tenorRes = await fetch(url);
-    if (!tenorRes.ok) throw new Error(`Tenor respondeu ${tenorRes.status}`);
-    const data = await tenorRes.json();
+    const giphyRes = await fetch(url);
+    if (!giphyRes.ok) throw new Error(`Giphy respondeu ${giphyRes.status}`);
+    const data = await giphyRes.json();
     res.json({ results: mapResults(data) });
   } catch (err) {
     res.status(502).json({ error: "Não foi possível buscar gifs agora: " + err.message });
@@ -48,16 +46,14 @@ router.get("/search", async (req, res) => {
 
 router.get("/featured", async (req, res) => {
   try {
-    const url = new URL("https://tenor.googleapis.com/v2/featured");
-    url.searchParams.set("key", TENOR_API_KEY);
-    url.searchParams.set("client_key", TENOR_CLIENT_KEY);
+    const url = new URL("https://api.giphy.com/v1/gifs/trending");
+    url.searchParams.set("api_key", GIPHY_API_KEY);
     url.searchParams.set("limit", "24");
-    url.searchParams.set("media_filter", "gif,tinygif,nanogif");
-    url.searchParams.set("contentfilter", "medium");
+    url.searchParams.set("rating", "pg-13");
 
-    const tenorRes = await fetch(url);
-    if (!tenorRes.ok) throw new Error(`Tenor respondeu ${tenorRes.status}`);
-    const data = await tenorRes.json();
+    const giphyRes = await fetch(url);
+    if (!giphyRes.ok) throw new Error(`Giphy respondeu ${giphyRes.status}`);
+    const data = await giphyRes.json();
     res.json({ results: mapResults(data) });
   } catch (err) {
     res.status(502).json({ error: "Não foi possível buscar gifs agora: " + err.message });

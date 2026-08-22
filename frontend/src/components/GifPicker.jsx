@@ -42,7 +42,7 @@ export default function GifPicker({ token, onPick, onClose }) {
     <div className="gif-picker" ref={ref}>
       <input
         className="gif-picker-search"
-        placeholder="Buscar gifs no Tenor…"
+        placeholder="Buscar gifs no Giphy…"
         value={query}
         onChange={(e) => handleQueryChange(e.target.value)}
         autoFocus

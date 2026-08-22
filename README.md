@@ -64,7 +64,7 @@ Para simular duas pessoas conversando:
 - Criar conta / login (senha criptografada, sessão via token)
 - Criar servidores e convidar pessoas por código
 - Canais de texto com mensagens em tempo real (Socket.io)
-- Envio de imagens nas mensagens (📎), envio de GIFs via Tenor (🎞️) e seletor de emojis (🙂) — funciona em canais e em DMs
+- Envio de imagens nas mensagens (📎), envio de GIFs via Giphy (🎞️) e seletor de emojis (🙂) — funciona em canais e em DMs
 - Perfil de usuário com avatar, banner e bio (clique no seu avatar no rodapé da lista de canais, ou no avatar de outra pessoa numa mensagem/lista de membros)
 - Ícone de servidor editável (o dono do servidor pode trocar clicando no lápis ao lado do nome, no topo da lista de canais)
 - Mensagens diretas (DMs) — clique no ícone `@` na barra da esquerda; a lista de contatos mostra quem compartilha algum servidor com você
@@ -72,16 +72,25 @@ Para simular duas pessoas conversando:
 - Compartilhamento de tela dentro do canal de voz (botão "Compartilhar tela")
 - Cargos: dono, admin e membro — o dono pode promover/rebaixar membros, e admins podem criar canais
 
-## Variável de ambiente opcional: TENOR_API_KEY
+## Variável de ambiente opcional: GIPHY_API_KEY
 
-A busca de GIFs usa a API pública do Tenor. Por padrão o backend usa uma chave de demonstração compartilhada (`LIVDSRZULELA`), que tem limite de requisições. Para uso mais sério, pegue sua própria chave gratuita em https://tenor.com/gifapi e defina a variável de ambiente `TENOR_API_KEY` antes de rodar o backend, por exemplo:
+A busca de GIFs usa a API pública do Giphy. Por padrão o backend usa uma chave de demonstração pública (`dc6zaTOxFJmzC`), que tem limite de requisições e pode ser bloqueada pelo Giphy (erro 403) por ser usada por muita gente ao mesmo tempo. Para uso mais sério, pegue sua própria chave gratuita em https://developers.giphy.com/dashboard/ e defina a variável de ambiente `GIPHY_API_KEY` antes de rodar o backend.
+
+Jeito mais simples — arquivo `.env` (já vem pronto, com `dotenv` instalado):
 
 ```bash
 cd backend
-TENOR_API_KEY=sua_chave npm run dev
+cp .env.example .env
+# edite o .env e cole sua chave em GIPHY_API_KEY=
+npm run dev
 ```
 
-Se preferir usar um arquivo `.env`, precisa instalar o pacote `dotenv` (`npm install dotenv` dentro de `backend/`) e adicionar `import "dotenv/config";` na primeira linha de `backend/src/server.js` — isso ainda não vem pronto no projeto.
+Ou passando direto na linha de comando, sem `.env`:
+
+```bash
+cd backend
+GIPHY_API_KEY=sua_chave npm run dev
+```
 
 ## Limitações conhecidas (para você evoluir como próximo passo)
 
@@ -113,7 +122,7 @@ Esse app precisa de um servidor rodando o tempo todo (não é um site estático)
 5. **Variáveis de ambiente** (aba "Environment" do Render):
    - `JWT_SECRET` — gere um valor aleatório (ex: `openssl rand -hex 32` no terminal, ou qualquer gerador de senha grande) e cole aqui. Sem isso o login fica inseguro.
    - `DATA_DIR` — aponte para `/var/data` (ou o caminho que você configurar no disco persistente do próximo passo).
-   - `TENOR_API_KEY` — opcional, ver seção acima.
+   - `GIPHY_API_KEY` — opcional, ver seção acima.
 
 6. **Disco persistente** (aba "Disks" do Render, dentro do serviço): adicione um disco e monte em `/var/data`. É isso que garante que `data.sqlite` (as contas) e as imagens enviadas não sumam quando o Render reiniciar ou fizer um novo deploy.
 

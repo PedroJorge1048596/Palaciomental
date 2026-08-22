@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import http from "http";
@@ -116,6 +117,27 @@ io.on("connection", (socket) => {
     io.to(`channel:${channelId}`).emit("message:new", row);
   });
 
+  // Apagar mensagem de canal: o autor sempre pode apagar a própria mensagem;
+  // dono/admin do servidor podem apagar qualquer mensagem do canal (moderação).
+  socket.on("message:delete", ({ channelId, messageId }) => {
+    const msg = db.prepare("SELECT * FROM messages WHERE id = ? AND channel_id = ?").get(messageId, channelId);
+    if (!msg) return;
+    const channel = db.prepare("SELECT server_id FROM channels WHERE id = ?").get(channelId);
+    if (!channel) return;
+
+    let canDelete = msg.user_id === socket.user.id;
+    if (!canDelete) {
+      const membership = db
+        .prepare("SELECT role FROM server_members WHERE server_id = ? AND user_id = ?")
+        .get(channel.server_id, socket.user.id);
+      canDelete = !!membership && (membership.role === "owner" || membership.role === "admin");
+    }
+    if (!canDelete) return;
+
+    db.prepare("DELETE FROM messages WHERE id = ?").run(messageId);
+    io.to(`channel:${channelId}`).emit("message:deleted", { id: messageId, channelId });
+  });
+
   // --- Mensagens diretas ---
   socket.on("dm:join", (otherUserId) => {
     socket.join(`dm:${pairKey(socket.user.id, otherUserId)}`);
@@ -144,6 +166,16 @@ io.on("connection", (socket) => {
       .get(id);
 
     io.to(`dm:${key}`).emit("dm:new", row);
+  });
+
+  // Apagar mensagem de DM: só quem enviou pode apagar (não há moderação em DM).
+  socket.on("dm:delete", ({ otherUserId, messageId }) => {
+    const key = pairKey(socket.user.id, otherUserId);
+    const msg = db.prepare("SELECT * FROM dm_messages WHERE id = ? AND pair_key = ?").get(messageId, key);
+    if (!msg || msg.from_user_id !== socket.user.id) return;
+
+    db.prepare("DELETE FROM dm_messages WHERE id = ?").run(messageId);
+    io.to(`dm:${key}`).emit("dm:deleted", { id: messageId });
   });
 
   // --- Sinalização simples para canais de voz (WebRTC mesh, ideal para poucos usuários) ---

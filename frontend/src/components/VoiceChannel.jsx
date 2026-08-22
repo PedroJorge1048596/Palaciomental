@@ -25,7 +25,7 @@ function colorForName(name) {
   return TILE_COLORS[hash % TILE_COLORS.length];
 }
 
-export default function VoiceChannel({ channel, currentUser }) {
+export default function VoiceChannel({ channel, currentUser, hidden = false }) {
   const [participants, setParticipants] = useState([]); // {id, username}
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -351,7 +351,7 @@ export default function VoiceChannel({ channel, currentUser }) {
     : "";
 
   return (
-    <div className="voice-panel">
+    <div className="voice-panel" style={hidden ? { display: "none" } : undefined}>
       <div className="voice-panel-header">🔊 {channel.name}</div>
 
       {!connected ? (

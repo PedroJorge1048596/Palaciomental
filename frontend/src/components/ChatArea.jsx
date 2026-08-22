@@ -14,7 +14,7 @@ function formatTime(iso) {
  * mode: "channel" | "dm"
  * target: canal ({id, name}) quando mode="channel", ou usuário ({id, username}) quando mode="dm"
  */
-export default function ChatArea({ mode = "channel", target, token, currentUser, onOpenProfile }) {
+export default function ChatArea({ mode = "channel", target, token, currentUser, onOpenProfile, canManage = false }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -49,11 +49,19 @@ export default function ChatArea({ mode = "channel", target, token, currentUser,
     const eventName = isDm ? "dm:new" : "message:new";
     socket.on(eventName, handleNew);
 
+    function handleDeleted({ id }) {
+      if (cancelled) return;
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    }
+    const deleteEventName = isDm ? "dm:deleted" : "message:deleted";
+    socket.on(deleteEventName, handleDeleted);
+
     return () => {
       cancelled = true;
       if (isDm) socket.emit("dm:leave", target.id);
       else socket.emit("channel:leave", target.id);
       socket.off(eventName, handleNew);
+      socket.off(deleteEventName, handleDeleted);
       setMessages([]);
     };
   }, [mode, target?.id]);
@@ -97,6 +105,11 @@ export default function ChatArea({ mode = "channel", target, token, currentUser,
     setShowGifs(false);
   }
 
+  function deleteMessage(id) {
+    if (isDm) getSocket().emit("dm:delete", { otherUserId: target.id, messageId: id });
+    else getSocket().emit("message:delete", { channelId: target.id, messageId: id });
+  }
+
   if (!target) {
     return <div className="chat-empty">Escolha uma conversa para começar.</div>;
   }
@@ -114,8 +127,19 @@ export default function ChatArea({ mode = "channel", target, token, currentUser,
           const authorId = m[identityKeyField];
           const prevAuthorId = prev?.[identityKeyField];
           const grouped = prev && prevAuthorId === authorId;
+          const canDelete = authorId === currentUser.id || (!isDm && canManage);
           return (
             <div key={m.id} className={`message-row ${grouped ? "grouped" : ""}`}>
+              {canDelete && (
+                <button
+                  type="button"
+                  className="message-delete-btn"
+                  title="Apagar mensagem"
+                  onClick={() => deleteMessage(m.id)}
+                >
+                  🗑
+                </button>
+              )}
               {!grouped && (
                 <Avatar
                   className="message-avatar"

@@ -24,6 +24,12 @@ export default function App() {
   const [viewingDms, setViewingDms] = useState(false);
   const [profileUserId, setProfileUserId] = useState(null);
 
+  // Canal de voz "ativo" para fins de conexão — só muda quando o usuário navega
+  // para um canal de voz. Ao contrário de activeChannel, NÃO some quando o usuário
+  // volta a olhar um canal de texto, então o componente VoiceChannel continua montado
+  // (só fica escondido via CSS) e a call/WebRTC não é derrubada.
+  const [voiceChannel, setVoiceChannel] = useState(null);
+
   // Quem está em cada canal de voz agora, em TODOS os servidores: { channelId: [{socketId, username, sharing}] }
   // É mantido aqui (não dentro de VoiceChannel) para a barra lateral poder mostrar
   // isso mesmo quando você não está olhando/dentro daquele canal de voz.
@@ -47,6 +53,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token]);
 
+  // Mantém voiceChannel em sincronia sempre que o usuário navega para um canal de voz.
+  // Não é limpo quando ele volta para um canal de texto — é isso que mantém a call viva.
+  useEffect(() => {
+    if (activeChannel?.type === "voice") setVoiceChannel(activeChannel);
+  }, [activeChannel]);
+
   function handleAuth(data) {
     localStorage.setItem("agora-auth", JSON.stringify(data));
     setAuth(data);
@@ -61,6 +73,7 @@ export default function App() {
     setActiveChannel(null);
     setMembers([]);
     setViewingDms(false);
+    setVoiceChannel(null);
   }
 
   async function loadServers() {
@@ -73,6 +86,7 @@ export default function App() {
     setViewingDms(false);
     setActiveServer(server);
     setActiveChannel(null);
+    if (server.id !== activeServer?.id) setVoiceChannel(null);
     const [chs, mems] = await Promise.all([
       api.getChannels(auth.token, server.id),
       api.getMembers(auth.token, server.id),
@@ -165,9 +179,19 @@ export default function App() {
             onUpdateServerIcon={updateServerIcon}
           />
 
-          {activeChannel?.type === "voice" ? (
-            <VoiceChannel key={activeChannel.id} channel={activeChannel} currentUser={currentUser} />
-          ) : (
+          {/* VoiceChannel fica montado mesmo quando o usuário está olhando um canal de
+              texto (só escondido via CSS) — assim entrar numa call e clicar no #geral
+              não derruba a conexão de voz/WebRTC. Só desmonta de fato se o usuário
+              trocar para outro canal de voz ou sair do servidor. */}
+          {voiceChannel && (
+            <VoiceChannel
+              key={voiceChannel.id}
+              channel={voiceChannel}
+              currentUser={currentUser}
+              hidden={activeChannel?.type !== "voice"}
+            />
+          )}
+          {activeChannel?.type !== "voice" && (
             <ChatArea
               key={activeChannel?.id}
               mode="channel"
@@ -175,6 +199,7 @@ export default function App() {
               token={auth.token}
               currentUser={currentUser}
               onOpenProfile={openProfile}
+              canManage={canManage}
             />
           )}
 
