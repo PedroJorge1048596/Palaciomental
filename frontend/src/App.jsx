@@ -1,0 +1,201 @@
+import { useEffect, useState } from "react";
+import Auth from "./components/Auth.jsx";
+import ServerSidebar from "./components/ServerSidebar.jsx";
+import ChannelSidebar from "./components/ChannelSidebar.jsx";
+import ChatArea from "./components/ChatArea.jsx";
+import MemberList from "./components/MemberList.jsx";
+import VoiceChannel from "./components/VoiceChannel.jsx";
+import DirectMessages from "./components/DirectMessages.jsx";
+import ProfileModal from "./components/ProfileModal.jsx";
+import { api } from "./api";
+import { connectSocket } from "./socket";
+
+export default function App() {
+  const [auth, setAuth] = useState(() => {
+    const saved = localStorage.getItem("agora-auth");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [servers, setServers] = useState([]);
+  const [activeServer, setActiveServer] = useState(null);
+  const [channels, setChannels] = useState([]);
+  const [activeChannel, setActiveChannel] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [viewingDms, setViewingDms] = useState(false);
+  const [profileUserId, setProfileUserId] = useState(null);
+
+  // Quem está em cada canal de voz agora, em TODOS os servidores: { channelId: [{socketId, username, sharing}] }
+  // É mantido aqui (não dentro de VoiceChannel) para a barra lateral poder mostrar
+  // isso mesmo quando você não está olhando/dentro daquele canal de voz.
+  const [voicePresence, setVoicePresence] = useState({});
+
+  // Conecta o socket assim que autenticado
+  useEffect(() => {
+    if (!auth) return;
+    const socket = connectSocket(auth.token);
+    loadServers();
+
+    function handlePresence({ channelId, users }) {
+      setVoicePresence((prev) => ({ ...prev, [channelId]: users }));
+    }
+    socket.on("voice:presence", handlePresence);
+    socket.emit("voice:presence:request");
+
+    return () => {
+      socket.off("voice:presence", handlePresence);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token]);
+
+  function handleAuth(data) {
+    localStorage.setItem("agora-auth", JSON.stringify(data));
+    setAuth(data);
+  }
+
+  function logout() {
+    localStorage.removeItem("agora-auth");
+    setAuth(null);
+    setServers([]);
+    setActiveServer(null);
+    setChannels([]);
+    setActiveChannel(null);
+    setMembers([]);
+    setViewingDms(false);
+  }
+
+  async function loadServers() {
+    const list = await api.getServers(auth.token);
+    setServers(list);
+    if (list.length && !activeServer) selectServer(list[0]);
+  }
+
+  async function selectServer(server) {
+    setViewingDms(false);
+    setActiveServer(server);
+    setActiveChannel(null);
+    const [chs, mems] = await Promise.all([
+      api.getChannels(auth.token, server.id),
+      api.getMembers(auth.token, server.id),
+    ]);
+    setChannels(chs);
+    setMembers(mems);
+    const firstText = chs.find((c) => c.type === "text");
+    if (firstText) setActiveChannel(firstText);
+  }
+
+  async function createServer(name) {
+    const server = await api.createServer(auth.token, name);
+    await loadServers();
+    selectServer(server);
+  }
+
+  async function joinServer(code) {
+    const server = await api.joinServer(auth.token, code);
+    await loadServers();
+    selectServer(server);
+  }
+
+  async function createChannel(name, type) {
+    await api.createChannel(auth.token, activeServer.id, name, type);
+    const chs = await api.getChannels(auth.token, activeServer.id);
+    setChannels(chs);
+  }
+
+  async function changeRole(userId, role) {
+    await api.setRole(auth.token, activeServer.id, userId, role);
+    const mems = await api.getMembers(auth.token, activeServer.id);
+    setMembers(mems);
+  }
+
+  function openProfile(userId) {
+    setProfileUserId(userId);
+  }
+
+  async function updateServerIcon(iconUrl) {
+    const updated = await api.updateServer(auth.token, activeServer.id, { icon_url: iconUrl });
+    setActiveServer(updated);
+    setServers((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
+  function handleProfileUpdated(updated) {
+    if (updated.id !== currentUser.id) return; // só nos importa quando é o próprio usuário
+    const nextUser = { ...auth.user, ...updated };
+    const nextAuth = { ...auth, user: nextUser };
+    localStorage.setItem("agora-auth", JSON.stringify(nextAuth));
+    setAuth(nextAuth);
+    setMembers((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
+  }
+
+  if (!auth) return <Auth onAuth={handleAuth} />;
+
+  const currentUser = auth.user;
+  const myMembership = members.find((m) => m.id === currentUser.id);
+  const canManage = myMembership && (myMembership.role === "owner" || myMembership.role === "admin");
+  const isOwner = activeServer && activeServer.owner_id === currentUser.id;
+
+  return (
+    <div className={`app-shell ${viewingDms ? "no-members" : ""}`}>
+      <ServerSidebar
+        servers={servers}
+        activeServer={viewingDms ? null : activeServer}
+        viewingDms={viewingDms}
+        onSelect={selectServer}
+        onCreate={createServer}
+        onJoin={joinServer}
+        onOpenDms={() => setViewingDms(true)}
+        onLogout={logout}
+      />
+
+      {viewingDms ? (
+        <DirectMessages token={auth.token} currentUser={currentUser} onOpenProfile={openProfile} />
+      ) : activeServer ? (
+        <>
+          <ChannelSidebar
+            server={activeServer}
+            channels={channels}
+            activeChannel={activeChannel}
+            onSelect={setActiveChannel}
+            onCreateChannel={createChannel}
+            canManage={canManage}
+            currentUser={currentUser}
+            voicePresence={voicePresence}
+            token={auth.token}
+            isOwner={isOwner}
+            onOpenProfile={openProfile}
+            onUpdateServerIcon={updateServerIcon}
+          />
+
+          {activeChannel?.type === "voice" ? (
+            <VoiceChannel key={activeChannel.id} channel={activeChannel} currentUser={currentUser} />
+          ) : (
+            <ChatArea
+              key={activeChannel?.id}
+              mode="channel"
+              target={activeChannel}
+              token={auth.token}
+              currentUser={currentUser}
+              onOpenProfile={openProfile}
+            />
+          )}
+
+          <MemberList members={members} isOwner={isOwner} onChangeRole={changeRole} onOpenProfile={openProfile} />
+        </>
+      ) : (
+        <div className="no-server-screen">
+          <p>Você ainda não tem nenhum servidor.</p>
+          <p>Crie um novo ou entre com um código de convite no menu à esquerda.</p>
+        </div>
+      )}
+
+      {profileUserId && (
+        <ProfileModal
+          token={auth.token}
+          userId={profileUserId}
+          currentUser={currentUser}
+          onClose={() => setProfileUserId(null)}
+          onUpdated={handleProfileUpdated}
+        />
+      )}
+    </div>
+  );
+}

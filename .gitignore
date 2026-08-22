@@ -1,0 +1,11 @@
+node_modules/
+uploads/
+data.sqlite
+data.sqlite-journal
+data.sqlite-wal
+data.sqlite-shm
+dist/
+.env
+.env.production
+desktop/renderer/
+desktop/release/
