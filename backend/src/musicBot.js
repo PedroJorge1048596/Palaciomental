@@ -243,12 +243,12 @@ class BotSession {
 
   startAudioPipeline(url) {
     // yt-dlp escreve o melhor áudio disponível direto no stdout (sem salvar em disco).
-    // "--extractor-args youtube:player_client=android" evita boa parte dos bloqueios
-    // "Sign in to confirm you're not a bot" que o YouTube vem aplicando no cliente
-    // padrão (web) — mas o cliente android só expõe formatos combinados (vídeo+áudio
-    // juntos), não streams de áudio puro. Por isso "-f bestaudio" sozinho falha nele
-    // ("Requested format is not available") — "bestaudio/best" cai pro melhor formato
-    // combinado quando não existir um só de áudio; o ffmpeg ignora o vídeo sozinho.
+    // "--extractor-args youtube:player_client=tv,web_safari": o YouTube passou a exigir
+    // um "proof-of-origin" em cima da checagem de sessão, e o cliente "android" (que
+    // usávamos antes) parou de escapar dessa checagem de forma confiável. "tv,web_safari"
+    // é o que tem contornado o bloqueio "Sign in to confirm you're not a bot" com mais
+    // consistência por enquanto — mas isso muda com o tempo conforme o YouTube ajusta
+    // a detecção, então se voltar a falhar vale procurar qual client está funcionando agora.
     this.ytdlpProc = spawn(ytDlpBinPath(), [
       "-f",
       "bestaudio/best",
@@ -256,7 +256,7 @@ class BotSession {
       "-",
       "--no-warnings",
       "--extractor-args",
-      "youtube:player_client=android",
+      "youtube:player_client=tv,web_safari",
       ...cookiesArgs(),
       url,
     ]);
