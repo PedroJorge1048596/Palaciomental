@@ -30,6 +30,19 @@ function ytDlpBinPath() {
   return fs.existsSync(local) ? local : "yt-dlp";
 }
 
+// Caminho do cookies.txt exportado do YouTube (formato Netscape). Configurado
+// via env var YTDLP_COOKIES_PATH — no Render, aponta pro Secret File
+// (ex: /etc/secrets/cookies.txt); localmente pode ficar sem essa var que o
+// yt-dlp simplesmente não usa cookies. Sem isso, o YouTube bloqueia boa parte
+// dos pedidos vindos de IP de datacenter com "Sign in to confirm you're not a bot".
+function cookiesArgs() {
+  const cookiesPath = process.env.YTDLP_COOKIES_PATH;
+  if (cookiesPath && fs.existsSync(cookiesPath)) {
+    return ["--cookies", cookiesPath];
+  }
+  return [];
+}
+
 const { RTCPeerConnection, MediaStream, nonstandard } = wrtc;
 const { RTCAudioSource } = nonstandard;
 
@@ -244,6 +257,7 @@ class BotSession {
       "--no-warnings",
       "--extractor-args",
       "youtube:player_client=android",
+      ...cookiesArgs(),
       url,
     ]);
 
@@ -416,7 +430,13 @@ function findSessionForUser(voiceRooms, userId) {
 
 async function fetchTitle(url) {
   return new Promise((resolve) => {
-    const proc = spawn(ytDlpBinPath(), ["--dump-json", "--no-warnings", "--skip-download", url]);
+    const proc = spawn(ytDlpBinPath(), [
+      "--dump-json",
+      "--no-warnings",
+      "--skip-download",
+      ...cookiesArgs(),
+      url,
+    ]);
     let out = "";
     proc.stdout.on("data", (chunk) => {
       out += chunk;
