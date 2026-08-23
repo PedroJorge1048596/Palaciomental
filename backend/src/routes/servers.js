@@ -2,6 +2,7 @@ import { Router } from "express";
 import { v4 as uuid } from "uuid";
 import db from "../db.js";
 import { requireAuth } from "../auth.js";
+import { getIO } from "../realtime.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -153,6 +154,38 @@ router.patch("/:serverId/members/:userId/role", (req, res) => {
   db.prepare(
     "UPDATE server_members SET role = ? WHERE server_id = ? AND user_id = ?"
   ).run(role, req.params.serverId, req.params.userId);
+  res.json({ ok: true });
+});
+
+// Remove um membro do servidor (expulsão) — apenas o dono pode fazer isso.
+router.delete("/:serverId/members/:userId", (req, res) => {
+  const server = db.prepare("SELECT * FROM servers WHERE id = ?").get(req.params.serverId);
+  if (!server) return res.status(404).json({ error: "Servidor não encontrado" });
+  if (server.owner_id !== req.user.id) {
+    return res.status(403).json({ error: "Apenas o dono do servidor pode remover membros" });
+  }
+  if (req.params.userId === server.owner_id) {
+    return res.status(400).json({ error: "O dono não pode remover a si mesmo do servidor" });
+  }
+
+  const result = db
+    .prepare("DELETE FROM server_members WHERE server_id = ? AND user_id = ?")
+    .run(req.params.serverId, req.params.userId);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Esse usuário não é membro deste servidor" });
+  }
+
+  // Se a pessoa removida estiver online agora, avisa em tempo real pra sumir
+  // o servidor da tela dela (e derrubar a call de voz, se estiver em uma).
+  const io = getIO();
+  if (io) {
+    for (const [, s] of io.sockets.sockets) {
+      if (s.user?.id === req.params.userId) {
+        s.emit("server:removed", { serverId: req.params.serverId });
+      }
+    }
+  }
+
   res.json({ ok: true });
 });
 

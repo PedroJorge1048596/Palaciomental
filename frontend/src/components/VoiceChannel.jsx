@@ -25,7 +25,7 @@ function colorForName(name) {
   return TILE_COLORS[hash % TILE_COLORS.length];
 }
 
-export default function VoiceChannel({ channel, currentUser, hidden = false }) {
+export default function VoiceChannel({ channel, currentUser, hidden = false, isOwner = false }) {
   const [participants, setParticipants] = useState([]); // {id, username}
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -33,6 +33,23 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
   const [sharingScreen, setSharingScreen] = useState(false);
   const [remoteScreens, setRemoteScreens] = useState({}); // socketId -> username (quem está compartilhando)
   const [expandedTile, setExpandedTile] = useState(null); // null | "local" | socketId — modo teatro
+  const [ctxMenu, setCtxMenu] = useState(null); // {id, username, x, y} — menu de volume/mudo local
+
+  // Volume/mudo LOCAL por pessoa — só afeta o que EU escuto, não é enviado a
+  // ninguém. Guardado por username (não por socketId, que muda a cada
+  // conexão) e persistido no localStorage pra sobreviver a reconexões.
+  const [peerAudioPrefs, setPeerAudioPrefs] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("voicePeerAudioPrefs") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const peerAudioPrefsRef = useRef(peerAudioPrefs);
+  useEffect(() => {
+    peerAudioPrefsRef.current = peerAudioPrefs;
+    localStorage.setItem("voicePeerAudioPrefs", JSON.stringify(peerAudioPrefs));
+  }, [peerAudioPrefs]);
 
   const connectedRef = useRef(false); // espelha "connected" sem sofrer de closures desatualizadas
   const localStreamRef = useRef(null);
@@ -43,6 +60,15 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
   const pendingScreenStreams = useRef({}); // socketId -> MediaStream (chegou antes do <video> montar)
   const peersRef = useRef({}); // socketId -> RTCPeerConnection
   const audioElsRef = useRef({}); // socketId -> <audio>
+  const usernameForSocketRef = useRef({}); // socketId -> username (pra aplicar prefs de volume ao conectar)
+
+  function applyAudioPrefs(socketId, username) {
+    const audio = audioElsRef.current[socketId];
+    if (!audio) return;
+    const prefs = peerAudioPrefsRef.current[username];
+    audio.volume = prefs?.volume != null ? prefs.volume / 100 : 1;
+    audio.muted = !!prefs?.muted;
+  }
 
   // Registra os listeners de voz UMA ÚNICA VEZ por canal — antes, eles eram
   // registrados dentro de join(), então cada "Entrar" depois de um "Sair"
@@ -61,10 +87,14 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
           avatarUrl: u.avatarUrl,
         }))
       );
-      users.forEach((u) => createPeer(u.socketId, true));
+      users.forEach((u) => {
+        usernameForSocketRef.current[u.socketId] = u.username;
+        createPeer(u.socketId, true);
+      });
     }
 
     function onUserJoined(u) {
+      usernameForSocketRef.current[u.socketId] = u.username;
       setParticipants((prev) =>
         prev.some((p) => p.id === u.socketId)
           ? prev
@@ -90,6 +120,7 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
     }
 
     async function onSignal({ from, signal, user }) {
+      if (user?.username) usernameForSocketRef.current[from] = user.username;
       let pc = peersRef.current[from];
       if (!pc) {
         pc = createPeerConnection(from, user?.username);
@@ -125,12 +156,20 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
       setExpandedTile((cur) => (cur === socketId ? null : cur));
     }
 
+    // O dono da call te expulsou — sai igual clicar em "Sair", com um aviso.
+    function onKicked({ channelId: kickedChannelId }) {
+      if (kickedChannelId !== channel?.id) return;
+      leave();
+      setError("Você foi removido da call pelo dono do servidor.");
+    }
+
     socket.on("voice:room-users", onRoomUsers);
     socket.on("voice:user-joined", onUserJoined);
     socket.on("voice:user-left", onUserLeft);
     socket.on("voice:signal", onSignal);
     socket.on("screenshare:start", onScreenStart);
     socket.on("screenshare:stop", onScreenStop);
+    socket.on("voice:kicked", onKicked);
 
     return () => {
       socket.off("voice:room-users", onRoomUsers);
@@ -139,6 +178,7 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
       socket.off("voice:signal", onSignal);
       socket.off("screenshare:start", onScreenStart);
       socket.off("screenshare:stop", onScreenStop);
+      socket.off("voice:kicked", onKicked);
       leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,11 +186,46 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
 
   useEffect(() => {
     function onKeyDown(e) {
-      if (e.key === "Escape") setExpandedTile(null);
+      if (e.key === "Escape") {
+        setExpandedTile(null);
+        setCtxMenu(null);
+      }
+    }
+    function onClickAway() {
+      setCtxMenu(null);
     }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("click", onClickAway);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("click", onClickAway);
+    };
   }, []);
+
+  function openCtxMenu(e, id, username) {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ id, username, x: e.clientX, y: e.clientY });
+  }
+
+  function setPeerVolume(username, volume) {
+    setPeerAudioPrefs((prev) => ({ ...prev, [username]: { ...prev[username], volume } }));
+    if (ctxMenu) {
+      const audio = audioElsRef.current[ctxMenu.id];
+      if (audio) audio.volume = volume / 100;
+    }
+  }
+
+  function togglePeerMute(username) {
+    setPeerAudioPrefs((prev) => {
+      const nextMuted = !prev[username]?.muted;
+      if (ctxMenu) {
+        const audio = audioElsRef.current[ctxMenu.id];
+        if (audio) audio.muted = nextMuted;
+      }
+      return { ...prev, [username]: { ...prev[username], muted: nextMuted } };
+    });
+  }
 
   async function join() {
     setError("");
@@ -259,6 +334,7 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
         audioElsRef.current[socketId] = audio;
       }
       audio.srcObject = e.streams[0];
+      applyAudioPrefs(socketId, usernameForSocketRef.current[socketId] || username);
     };
 
     return pc;
@@ -289,6 +365,7 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
     setParticipants([]);
     setRemoteScreens({});
     setExpandedTile(null);
+    setCtxMenu(null);
     remoteVideoRefs.current = {};
     pendingScreenStreams.current = {};
     if (wasConnected) playLeaveSound();
@@ -301,18 +378,27 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
     setMuted(!muted);
   }
 
+  function kickParticipant(id, username) {
+    if (!confirm(`Remover ${username} da call?`)) return;
+    getSocket().emit("voice:kick", { channelId: channel.id, targetSocketId: id });
+  }
+
   // Retângulo de participante: usado tanto na grade normal quanto na tira do modo teatro.
   function renderTile({ id, username, isMe = false, small = false, avatarColor, avatarUrl }) {
     const sharing = isMe ? sharingScreen : !!remoteScreens[id];
     const isMuted = isMe && muted;
     const bg = isMe ? currentUser.avatar_color : avatarColor || colorForName(username || "?");
     const imgUrl = isMe ? currentUser.avatar_url : avatarUrl;
+    const canKick = isOwner && !isMe && !small && !id.startsWith("bot:");
+    const localPrefs = !isMe ? peerAudioPrefs[username] : null;
+    const locallyMuted = !!localPrefs?.muted;
 
     return (
       <div
         key={id}
         className={`voice-tile ${small ? "small" : ""} ${isMe ? "me" : ""}`}
         style={{ background: bg }}
+        onContextMenu={!isMe ? (e) => openCtxMenu(e, id, username) : undefined}
       >
         {sharing && !small && (
           <button
@@ -322,6 +408,16 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
             onClick={() => setExpandedTile(id)}
           >
             ⤢
+          </button>
+        )}
+        {canKick && (
+          <button
+            type="button"
+            className="voice-tile-kick-btn"
+            title={`Remover ${username} da call`}
+            onClick={() => kickParticipant(id, username)}
+          >
+            ✕
           </button>
         )}
         {sharing && <span className="voice-tile-live-badge">AO VIVO</span>}
@@ -334,6 +430,7 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
         </div>
         <div className="voice-tile-footer">
           {isMuted && <IconMicOff size={12} />}
+          {locallyMuted && <span title="Mutado só pra você"><IconHeadphones size={12} /></span>}
           <span className="voice-tile-name">
             {username}
             {isMe ? " (você)" : ""}
@@ -464,6 +561,44 @@ export default function VoiceChannel({ channel, currentUser, hidden = false }) {
               <IconPhoneOff size={16} />
               Desconectar
             </button>
+          </div>
+        </div>
+      )}
+
+      {ctxMenu && (
+        <div
+          className="voice-ctx-menu"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="voice-ctx-menu-title">{ctxMenu.username}</div>
+
+          <button type="button" className="voice-ctx-menu-item" onClick={() => togglePeerMute(ctxMenu.username)}>
+            {peerAudioPrefs[ctxMenu.username]?.muted ? (
+              <>
+                <IconMic size={14} /> Desmutar (só pra você)
+              </>
+            ) : (
+              <>
+                <IconMicOff size={14} /> Mutar (só pra você)
+              </>
+            )}
+          </button>
+
+          <div className="voice-ctx-menu-volume">
+            <span>Volume</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={peerAudioPrefs[ctxMenu.username]?.volume ?? 100}
+              onChange={(e) => setPeerVolume(ctxMenu.username, Number(e.target.value))}
+            />
+            <span className="voice-ctx-menu-volume-pct">
+              {peerAudioPrefs[ctxMenu.username]?.volume ?? 100}%
+            </span>
           </div>
         </div>
       )}

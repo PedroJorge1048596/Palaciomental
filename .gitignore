@@ -9,3 +9,4 @@ dist/
 .env.production
 desktop/renderer/
 desktop/release/
+backend/bin/

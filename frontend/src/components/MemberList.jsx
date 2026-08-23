@@ -2,7 +2,7 @@ import Avatar from "./Avatar.jsx";
 
 const ROLE_LABEL = { owner: "Dono", admin: "Admin", member: "Membro" };
 
-export default function MemberList({ members, isOwner, onChangeRole, onOpenProfile }) {
+export default function MemberList({ members, isOwner, onChangeRole, onOpenProfile, onRemoveMember }) {
   return (
     <div className="member-col">
       <div className="member-col-title">Membros — {members.length}</div>
@@ -29,6 +29,20 @@ export default function MemberList({ members, isOwner, onChangeRole, onOpenProfi
               <option value="member">Membro</option>
               <option value="admin">Admin</option>
             </select>
+          )}
+          {isOwner && m.role !== "owner" && (
+            <button
+              type="button"
+              className="member-kick-btn"
+              title="Remover do servidor"
+              onClick={() => {
+                if (confirm(`Remover ${m.username} do servidor? Essa ação não pode ser desfeita.`)) {
+                  onRemoveMember(m.id);
+                }
+              }}
+            >
+              ✕
+            </button>
           )}
         </div>
       ))}

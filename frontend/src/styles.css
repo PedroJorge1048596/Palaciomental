@@ -613,6 +613,13 @@ button {
   font-size: 11px;
   padding: 3px 6px;
 }
+.member-kick-btn {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.member-kick-btn:hover { color: var(--danger); background: rgba(229, 88, 77, 0.12); }
 
 /* ---------- Voice panel ---------- */
 .voice-panel {
@@ -737,6 +744,70 @@ button {
   transition: opacity 0.15s ease;
 }
 .voice-tile:hover .voice-tile-expand-btn { opacity: 1; }
+
+.voice-tile-kick-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.voice-tile:hover .voice-tile-kick-btn { opacity: 1; }
+.voice-tile-kick-btn:hover { background: var(--danger); }
+
+/* ---------- Menu de contexto do voice-tile (volume/mudo local) ---------- */
+.voice-ctx-menu {
+  position: fixed;
+  z-index: 30;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  width: 220px;
+  box-shadow: 0 8px 24px rgba(3, 14, 22, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.voice-ctx-menu-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.voice-ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+.voice-ctx-menu-item:hover { background: var(--bg-hover); }
+.voice-ctx-menu-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.voice-ctx-menu-volume input[type="range"] { flex: 1; accent-color: var(--accent); }
+.voice-ctx-menu-volume-pct { width: 36px; text-align: right; color: var(--text); }
 
 /* Modo teatro: tela compartilhada em destaque no topo, participantes em miniatura embaixo */
 .voice-theater-main {
@@ -1035,13 +1106,22 @@ button {
    para os filhos com position:fixed — o modal fica preso nos 72px da coluna. */
 .server-rail { animation: fade-in 0.4s ease both; }
 
-.chat-area { animation: fade-slide-in 0.35s ease both; }
+/* IMPORTANTE: fill-mode "backwards" (não "both") nestas quatro classes.
+   "both" mantém o `transform` do keyframe final (translateY(0) / scale(1)) aplicado
+   PARA SEMPRE depois da animação — e mesmo sendo visualmente idêntico a "sem
+   transform", o CSS ainda conta isso como "tem transform", o que cria um novo
+   contexto de empilhamento permanente. Isso prendia os modais (position:fixed)
+   atrás de qualquer coisa dentro dessas áreas — imagens do chat, texto, os
+   quadrinhos de vídeo da call etc. "backwards" evita o flash inicial (mesmo
+   objetivo do "both") mas deixa o elemento voltar ao estilo normal (sem transform)
+   assim que a animação termina, então nada fica preso depois disso. */
+.chat-area { animation: fade-slide-in 0.35s ease backwards; }
 .voice-panel { animation: fade-in 0.35s ease both; }
-.voice-join-box { animation: fade-slide-in 0.4s ease both; }
-.voice-stage-wrap { animation: fade-slide-in 0.45s ease both; }
-.voice-tile { animation: scale-fade-in 0.35s ease both; }
+.voice-join-box { animation: fade-slide-in 0.4s ease backwards; }
+.voice-stage-wrap { animation: fade-slide-in 0.45s ease backwards; }
+.voice-tile { animation: scale-fade-in 0.35s ease backwards; }
 
-.message-row { animation: fade-slide-in 0.25s ease both; }
+.message-row { animation: fade-slide-in 0.25s ease backwards; }
 
 .modal-backdrop { animation: fade-in 0.2s ease both; }
 .modal { animation: scale-fade-in 0.25s ease both; }

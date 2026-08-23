@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import Modal from "./Modal.jsx";
 
 /**
  * userId: id do perfil sendo visto
@@ -69,8 +70,7 @@ export default function ProfileModal({ token, userId, currentUser, onClose, onUp
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal profile-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="profile-modal">
         {loading ? (
           <div className="profile-loading">Carregando perfil…</div>
         ) : !profile ? (
@@ -170,7 +170,6 @@ export default function ProfileModal({ token, userId, currentUser, onClose, onUp
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

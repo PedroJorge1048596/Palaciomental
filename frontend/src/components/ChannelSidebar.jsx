@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { api } from "../api";
 import Avatar from "./Avatar.jsx";
+import Modal from "./Modal.jsx";
 
 export default function ChannelSidebar({
   server,
@@ -143,28 +144,26 @@ export default function ChannelSidebar({
       </div>
 
       {showCreate && (
-        <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Criar canal de {type === "voice" ? "voz" : "texto"}</h3>
-            <input
-              placeholder="nome-do-canal"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                if (!name.trim()) return;
-                await onCreateChannel(name.trim(), type);
-                setName("");
-                setShowCreate(false);
-              }}
-            >
-              Criar
-            </button>
-          </div>
-        </div>
+        <Modal onClose={() => setShowCreate(false)}>
+          <h3>Criar canal de {type === "voice" ? "voz" : "texto"}</h3>
+          <input
+            placeholder="nome-do-canal"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+          <button
+            className="btn-primary"
+            onClick={async () => {
+              if (!name.trim()) return;
+              await onCreateChannel(name.trim(), type);
+              setName("");
+              setShowCreate(false);
+            }}
+          >
+            Criar
+          </button>
+        </Modal>
       )}
     </div>
   );

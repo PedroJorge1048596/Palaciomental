@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Avatar from "./Avatar.jsx";
+import Modal from "./Modal.jsx";
 
 export default function ServerSidebar({ servers, activeServer, viewingDms, onSelect, onCreate, onJoin, onOpenDms, onLogout }) {
   const [showCreate, setShowCreate] = useState(false);
@@ -54,53 +55,49 @@ export default function ServerSidebar({ servers, activeServer, viewingDms, onSel
       </button>
 
       {showCreate && (
-        <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Criar um novo servidor</h3>
-            <input
-              placeholder="Nome do servidor"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                if (!name.trim()) return;
-                await onCreate(name.trim());
-                setName("");
-                setShowCreate(false);
-              }}
-            >
-              Criar
-            </button>
-          </div>
-        </div>
+        <Modal onClose={() => setShowCreate(false)}>
+          <h3>Criar um novo servidor</h3>
+          <input
+            placeholder="Nome do servidor"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+          <button
+            className="btn-primary"
+            onClick={async () => {
+              if (!name.trim()) return;
+              await onCreate(name.trim());
+              setName("");
+              setShowCreate(false);
+            }}
+          >
+            Criar
+          </button>
+        </Modal>
       )}
 
       {showJoin && (
-        <div className="modal-backdrop" onClick={() => setShowJoin(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Entrar com código de convite</h3>
-            <input
-              placeholder="ex: a1b2c3"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              autoFocus
-            />
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                if (!code.trim()) return;
-                await onJoin(code.trim());
-                setCode("");
-                setShowJoin(false);
-              }}
-            >
-              Entrar
-            </button>
-          </div>
-        </div>
+        <Modal onClose={() => setShowJoin(false)}>
+          <h3>Entrar com código de convite</h3>
+          <input
+            placeholder="ex: a1b2c3"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoFocus
+          />
+          <button
+            className="btn-primary"
+            onClick={async () => {
+              if (!code.trim()) return;
+              await onJoin(code.trim());
+              setCode("");
+              setShowJoin(false);
+            }}
+          >
+            Entrar
+          </button>
+        </Modal>
       )}
     </div>
   );

@@ -15,6 +15,15 @@ import uploadRoutes from "./routes/uploads.js";
 import dmRoutes, { pairKey } from "./routes/dms.js";
 import userRoutes from "./routes/users.js";
 import gifRoutes from "./routes/gifs.js";
+import {
+  handleChatCommand,
+  isBotSocketId,
+  onVoiceSignalToBot,
+  onUserJoinedVoice,
+  onUserLeftVoice,
+  stopIfRoomEmpty,
+} from "./musicBot.js";
+import { initRealtime } from "./realtime.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "..");
@@ -58,6 +67,8 @@ io.use((socket, next) => {
   next();
 });
 
+initRealtime(io);
+
 // Quem está em qual sala de voz, por canal: { channelId: [{id, username}] }
 const voiceRooms = {};
 
@@ -99,9 +110,17 @@ io.on("connection", (socket) => {
   });
 
   // Nova mensagem de texto (com anexo de imagem opcional)
-  socket.on("message:send", ({ channelId, content, attachmentUrl }) => {
+  socket.on("message:send", async ({ channelId, content, attachmentUrl }) => {
     const text = (content || "").trim();
     if (!text && !attachmentUrl) return;
+
+    // Comandos do bot de música (m!p, m!s, m!stop) nunca viram mensagem salva —
+    // o bot responde no lugar com suas próprias mensagens.
+    if (text.toLowerCase().startsWith("m!")) {
+      const handled = await handleChatCommand({ io, db, socket, voiceRooms, channelId, text });
+      if (handled) return;
+    }
+
     const id = uuid();
     db.prepare(
       "INSERT INTO messages (id, channel_id, user_id, content, attachment_url) VALUES (?, ?, ?, ?, ?)"
@@ -213,6 +232,8 @@ io.on("connection", (socket) => {
       voiceRooms[channelId].filter((u) => u.socketId !== socket.id)
     );
     broadcastPresence(channelId);
+    // Se o bot de música já estiver nessa call, ele também precisa conectar com quem acabou de entrar
+    onUserJoinedVoice(channelId, socket.id);
   });
 
   socket.on("voice:leave", (channelId) => {
@@ -223,11 +244,45 @@ io.on("connection", (socket) => {
     socket.data.voiceChannel = null;
     socket.to(`voice:${channelId}`).emit("voice:user-left", { socketId: socket.id });
     broadcastPresence(channelId);
+    onUserLeftVoice(channelId, socket.id);
+    stopIfRoomEmpty(channelId, voiceRooms);
   });
 
-  // Repassa sinalização WebRTC (offer/answer/ice) entre pares
+  // Repassa sinalização WebRTC (offer/answer/ice) entre pares — inclui o bot de
+  // música, que não é um socket.io de verdade, então intercepta e roteia pra ele.
   socket.on("voice:signal", ({ to, signal }) => {
+    if (isBotSocketId(to)) {
+      const voiceChannelId = to.slice(4); // remove o prefixo "bot:"
+      onVoiceSignalToBot(voiceChannelId, socket.id, signal);
+      return;
+    }
     io.to(to).emit("voice:signal", { from: socket.id, signal, user: socket.user });
+  });
+
+  // Expulsar alguém de uma call de voz — só o dono do servidor pode.
+  // A verificação de permissão é sempre feita aqui no servidor (nunca confiar
+  // só no botão sumir/aparecer no frontend).
+  socket.on("voice:kick", ({ channelId, targetSocketId }) => {
+    const channel = db.prepare("SELECT server_id FROM channels WHERE id = ?").get(channelId);
+    if (!channel) return;
+    const server = db.prepare("SELECT owner_id FROM servers WHERE id = ?").get(channel.server_id);
+    if (!server || server.owner_id !== socket.user.id) return;
+    if (isBotSocketId(targetSocketId)) return; // pro bot, use o comando m!stop
+
+    if (voiceRooms[channelId]) {
+      voiceRooms[channelId] = voiceRooms[channelId].filter((u) => u.socketId !== targetSocketId);
+    }
+    io.to(`voice:${channelId}`).emit("voice:user-left", { socketId: targetSocketId });
+    io.to(targetSocketId).emit("voice:kicked", { channelId });
+    broadcastPresence(channelId);
+    onUserLeftVoice(channelId, targetSocketId);
+    stopIfRoomEmpty(channelId, voiceRooms);
+
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (targetSocket) {
+      targetSocket.leave(`voice:${channelId}`);
+      if (targetSocket.data.voiceChannel === channelId) targetSocket.data.voiceChannel = null;
+    }
   });
 
   // Avisa quem está transmitindo tela (o vídeo em si viaja pela mesma conexão WebRTC de voz)
@@ -250,6 +305,8 @@ io.on("connection", (socket) => {
       voiceRooms[channelId] = voiceRooms[channelId].filter((u) => u.socketId !== socket.id);
       socket.to(`voice:${channelId}`).emit("voice:user-left", { socketId: socket.id });
       broadcastPresence(channelId);
+      onUserLeftVoice(channelId, socket.id);
+      stopIfRoomEmpty(channelId, voiceRooms);
     }
   });
 });

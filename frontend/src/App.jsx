@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Auth from "./components/Auth.jsx";
 import ServerSidebar from "./components/ServerSidebar.jsx";
 import ChannelSidebar from "./components/ChannelSidebar.jsx";
@@ -35,6 +35,13 @@ export default function App() {
   // isso mesmo quando você não está olhando/dentro daquele canal de voz.
   const [voicePresence, setVoicePresence] = useState({});
 
+  // Espelha activeServer?.id sem sofrer de closure desatualizada dentro do
+  // listener de socket registrado uma única vez logo abaixo.
+  const activeServerIdRef = useRef(null);
+  useEffect(() => {
+    activeServerIdRef.current = activeServer?.id ?? null;
+  }, [activeServer]);
+
   // Conecta o socket assim que autenticado
   useEffect(() => {
     if (!auth) return;
@@ -47,8 +54,25 @@ export default function App() {
     socket.on("voice:presence", handlePresence);
     socket.emit("voice:presence:request");
 
+    // O dono removeu a gente do servidor — some com ele da lista, e se
+    // estávamos olhando ele agora, volta pra tela de "nenhum servidor"
+    // (isso também desmonta o VoiceChannel, se estivermos numa call dele,
+    // o que já dispara o "voice:leave" sozinho).
+    function handleServerRemoved({ serverId }) {
+      setServers((prev) => prev.filter((s) => s.id !== serverId));
+      if (activeServerIdRef.current === serverId) {
+        setActiveServer(null);
+        setActiveChannel(null);
+        setChannels([]);
+        setMembers([]);
+        setVoiceChannel(null);
+      }
+    }
+    socket.on("server:removed", handleServerRemoved);
+
     return () => {
       socket.off("voice:presence", handlePresence);
+      socket.off("server:removed", handleServerRemoved);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token]);
@@ -121,6 +145,12 @@ export default function App() {
     setMembers(mems);
   }
 
+  async function removeMember(userId) {
+    await api.removeMember(auth.token, activeServer.id, userId);
+    const mems = await api.getMembers(auth.token, activeServer.id);
+    setMembers(mems);
+  }
+
   function openProfile(userId) {
     setProfileUserId(userId);
   }
@@ -189,6 +219,7 @@ export default function App() {
               channel={voiceChannel}
               currentUser={currentUser}
               hidden={activeChannel?.type !== "voice"}
+              isOwner={isOwner}
             />
           )}
           {activeChannel?.type !== "voice" && (
@@ -203,7 +234,13 @@ export default function App() {
             />
           )}
 
-          <MemberList members={members} isOwner={isOwner} onChangeRole={changeRole} onOpenProfile={openProfile} />
+          <MemberList
+            members={members}
+            isOwner={isOwner}
+            onChangeRole={changeRole}
+            onOpenProfile={openProfile}
+            onRemoveMember={removeMember}
+          />
         </>
       ) : (
         <div className="no-server-screen">

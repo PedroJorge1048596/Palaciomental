@@ -98,4 +98,12 @@ if (!serverCols.includes("icon_url")) {
   db.exec("ALTER TABLE servers ADD COLUMN icon_url TEXT");
 }
 
+// Usuário "fantasma" que representa o bot de música nas mensagens de chat
+// (assim as mensagens dele passam pelo mesmo caminho de qualquer outra mensagem,
+// sem precisar mudar o schema nem o frontend). Login com esse usuário nunca funciona
+// porque o hash de senha não é um bcrypt válido.
+db.prepare(
+  `INSERT OR IGNORE INTO users (id, username, password_hash, avatar_color) VALUES (?, ?, ?, ?)`
+).run("music-bot", "🎵 Music Bot", "!login-desabilitado!", "#1DB954");
+
 export default db;

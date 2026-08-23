@@ -40,6 +40,8 @@ export const api = {
       body: { role },
       token,
     }),
+  removeMember: (token, serverId, userId) =>
+    request(`/servers/${serverId}/members/${userId}`, { method: "DELETE", token }),
 
   getMessages: (token, channelId) => request(`/servers/channels/${channelId}/messages`, { token }),
 
