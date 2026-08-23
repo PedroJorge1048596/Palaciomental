@@ -40,6 +40,13 @@ function cookiesArgs() {
   if (cookiesPath && fs.existsSync(cookiesPath)) {
     return ["--cookies", cookiesPath];
   }
+  if (cookiesPath) {
+    console.warn(
+      `[musicBot] YTDLP_COOKIES_PATH="${cookiesPath}" está definida mas o arquivo não existe nesse caminho — rodando sem cookies.`
+    );
+  } else {
+    console.warn("[musicBot] YTDLP_COOKIES_PATH não está definida — rodando sem cookies.");
+  }
   return [];
 }
 
