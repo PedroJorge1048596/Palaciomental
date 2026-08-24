@@ -9,6 +9,25 @@ export default function Auth({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const audioRef = useRef(null);
+  const videoRef = useRef(null);
+  const videoBlurRef = useRef(null);
+
+  // Defesa extra contra o glitch de "linha preta" ao trocar de aba: o Chrome
+  // às vezes pausa a decodificação de vídeos em segundo plano pra economizar
+  // recursos, e nem sempre retoma sozinho do jeito esperado quando a aba volta
+  // a ficar visível. Isso força os dois vídeos (e a música) a continuarem
+  // tocando assim que a página volta a ficar visível.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState !== "visible") return;
+      videoRef.current?.play().catch(() => {});
+      videoBlurRef.current?.play().catch(() => {});
+      const audio = audioRef.current;
+      if (audio && !audio.ended && audio.volume > 0) audio.play().catch(() => {});
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   // Assim que a tela de login aparece, toca a música tema em volume médio.
   // Navegadores bloqueiam autoplay COM som sem interação do usuário — por isso
@@ -67,6 +86,7 @@ export default function Auth({ onAuth }) {
   return (
     <div className={`auth-screen ${leaving ? "auth-screen--leaving" : ""}`}>
       <video
+        ref={videoRef}
         className="auth-bg-video"
         src="/auth-bg.mp4"
         autoPlay
@@ -74,15 +94,23 @@ export default function Auth({ onAuth }) {
         loop
         playsInline
       />
-      <div className="auth-bg-blur" />
+      <video
+        ref={videoBlurRef}
+        className="auth-bg-video-blur"
+        src="/auth-bg.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+        aria-hidden="true"
+      />
       <audio ref={audioRef} src="/auth-theme.mp3" loop />
 
       <div className="auth-card auth-card--mono">
         <div className="auth-brand">
-          <span className="auth-brand-mark">F</span>
-          <h1>Fractal</h1>
+          <img className="auth-brand-mark" src="/brand-icon.png" alt="Concord" />
+          <h1>Concord</h1>
         </div>
-        <p className="auth-tagline">Um cantinho para o seu grupo se encontrar.</p>
 
         <form onSubmit={submit} className="auth-form">
           <label>

@@ -147,20 +147,29 @@ button {
   z-index: 0;
 }
 
-/* Faixa de demarcação: do início da tela até ~34% (onde ficava a linha vermelha
-   de referência) o vídeo fica desfocado/escurecido; depois disso, visível puro. */
-.auth-bg-blur {
+/* Faixa de demarcação: uma SEGUNDA cópia do mesmo vídeo, borrada nela mesma
+   (filter, não backdrop-filter) e recortada só na faixa esquerda até ~34%
+   (onde ficava a linha vermelha de referência). Propositalmente NÃO usamos
+   backdrop-filter aqui: ele precisa "amostrar" ao vivo o que está atrás dele,
+   e no Chrome isso é instável bem nessa situação — quando a aba perde e
+   recupera o foco, a camada de composição do backdrop-filter é invalidada e
+   pode desenhar uma linha/costura preta na borda durante o repaint. Com
+   filter aplicado ao próprio vídeo, cada elemento se borra sozinho, sem
+   depender de captura em tempo real do que está por trás — evita essa classe
+   inteira de glitch de composição. */
+.auth-bg-video-blur {
   position: absolute;
   inset: 0;
-  width: 34%;
+  width: 100%;
   height: 100%;
+  object-fit: cover;
   z-index: 1;
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  background: rgba(0, 0, 0, 0.45);
-  /* transição suave na borda direita da faixa, em vez de um corte seco */
-  mask-image: linear-gradient(to right, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  filter: blur(22px) brightness(0.6);
+  clip-path: inset(0 66% 0 0);
+  -webkit-clip-path: inset(0 66% 0 0);
+  /* borda direita suave em vez de um corte seco */
+  mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
 }
 
 .auth-card {
@@ -179,15 +188,8 @@ button {
   border: 1px solid #fff;
   color: #fff;
 }
-.auth-card--mono .auth-brand-mark {
-  background: #fff;
-  color: #000;
-}
 .auth-card--mono .auth-brand h1 {
   color: #fff;
-}
-.auth-card--mono .auth-tagline {
-  color: rgba(255, 255, 255, 0.7);
 }
 .auth-card--mono .auth-form label {
   color: rgba(255, 255, 255, 0.85);
@@ -224,30 +226,18 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 24px;
 }
 .auth-brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
 }
 .auth-brand h1 {
   font-family: var(--font-display);
   font-size: 24px;
   margin: 0;
-}
-.auth-tagline {
-  color: var(--text-muted);
-  font-size: 14px;
-  margin: 6px 0 24px;
 }
 
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
@@ -684,7 +674,8 @@ button {
   padding: 6px;
   line-height: 1.5;
 }
-.server-icon--dm { font-family: var(--font-display); font-weight: 700; }
+.server-icon--dm { padding: 6px; }
+.server-icon-dm-img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 
 /* ---------- Compartilhamento de tela (ver seção "Voice panel" mais abaixo) ---------- */
 

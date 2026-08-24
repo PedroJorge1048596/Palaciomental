@@ -15,7 +15,7 @@ export default function ServerSidebar({ servers, activeServer, viewingDms, onSel
         title="Mensagens diretas"
         onClick={onOpenDms}
       >
-        @
+        <img className="server-icon-dm-img" src="/brand-icon.png" alt="Mensagens diretas" />
       </button>
       <div className="server-rail-divider" />
 
