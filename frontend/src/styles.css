@@ -156,20 +156,34 @@ button {
    pode desenhar uma linha/costura preta na borda durante o repaint. Com
    filter aplicado ao próprio vídeo, cada elemento se borra sozinho, sem
    depender de captura em tempo real do que está por trás — evita essa classe
-   inteira de glitch de composição. */
-.auth-bg-video-blur {
+   inteira de glitch de composição.
+
+   IMPORTANTE: o recorte (clip-path) e a máscara de fade (mask-image) NÃO
+   ficam no próprio <video> — ficam num <div> wrapper (.auth-bg-video-blur-wrap)
+   que envolve o vídeo. Aplicar mask-image diretamente num elemento <video> é
+   instável entre navegadores (a camada de composição do vídeo às vezes ignora
+   a máscara e cai para um corte seco, sem o fade), que era exatamente a linha
+   dura que aparecia. Colocando a máscara num <div> comum e o blur só no
+   <video> filho, a transição fica sempre suave. */
+.auth-bg-video-blur-wrap {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
   z-index: 1;
-  filter: blur(22px) brightness(0.6);
+  overflow: hidden;
   clip-path: inset(0 66% 0 0);
   -webkit-clip-path: inset(0 66% 0 0);
   /* borda direita suave em vez de um corte seco */
-  mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, black 0%, black 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 72%, transparent 100%);
+}
+
+.auth-bg-video-blur {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(22px) brightness(0.6);
 }
 
 .auth-card {

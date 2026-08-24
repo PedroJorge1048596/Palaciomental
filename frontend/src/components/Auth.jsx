@@ -94,16 +94,17 @@ export default function Auth({ onAuth }) {
         loop
         playsInline
       />
-      <video
-        ref={videoBlurRef}
-        className="auth-bg-video-blur"
-        src="/auth-bg.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-        aria-hidden="true"
-      />
+      <div className="auth-bg-video-blur-wrap" aria-hidden="true">
+        <video
+          ref={videoBlurRef}
+          className="auth-bg-video-blur"
+          src="/auth-bg.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+        />
+      </div>
       <audio ref={audioRef} src="/auth-theme.mp3" loop />
 
       <div className="auth-card auth-card--mono">
