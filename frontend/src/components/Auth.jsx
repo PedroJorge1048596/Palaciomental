@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 
 export default function Auth({ onAuth }) {
@@ -7,6 +7,45 @@ export default function Auth({ onAuth }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const audioRef = useRef(null);
+
+  // Assim que a tela de login aparece, toca a música tema em volume médio.
+  // Navegadores bloqueiam autoplay COM som sem interação do usuário — por isso
+  // o play() roda dentro de um try/catch silencioso; se o navegador recusar,
+  // a música só começa quando a pessoa interagir com a página (ex: focar um campo).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = 0.5;
+    audio.play().catch(() => {
+      const retry = () => {
+        audio.play().catch(() => {});
+        window.removeEventListener("pointerdown", retry);
+      };
+      window.addEventListener("pointerdown", retry, { once: true });
+    });
+  }, []);
+
+  // Reduz o volume gradualmente até 0 ao longo de ~1.2s (usado no momento do login).
+  function fadeOutAudio() {
+    return new Promise((resolve) => {
+      const audio = audioRef.current;
+      if (!audio) return resolve();
+      const steps = 24;
+      const stepTime = 1200 / steps;
+      const startVolume = audio.volume;
+      let i = 0;
+      const timer = setInterval(() => {
+        i++;
+        audio.volume = Math.max(0, startVolume * (1 - i / steps));
+        if (i >= steps) {
+          clearInterval(timer);
+          audio.pause();
+          resolve();
+        }
+      }, stepTime);
+    });
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -15,20 +54,31 @@ export default function Auth({ onAuth }) {
     try {
       const fn = mode === "login" ? api.login : api.register;
       const data = await fn(username, password);
+      await fadeOutAudio();
       onAuth(data);
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   }
 
   return (
     <div className="auth-screen">
-      <div className="auth-card">
+      <video
+        className="auth-bg-video"
+        src="/auth-bg.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+      />
+      <div className="auth-bg-blur" />
+      <audio ref={audioRef} src="/auth-theme.mp3" loop />
+
+      <div className="auth-card auth-card--mono">
         <div className="auth-brand">
-          <span className="auth-brand-mark">P</span>
-          <h1>Palácio Mental</h1>
+          <span className="auth-brand-mark">F</span>
+          <h1>Fractal</h1>
         </div>
         <p className="auth-tagline">Um cantinho para o seu grupo se encontrar.</p>
 

@@ -84,22 +84,98 @@ button {
 
 /* ---------- Auth ---------- */
 .auth-screen {
+  position: relative;
   height: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(47, 168, 224, 0.16), transparent 40%),
-    radial-gradient(circle at 80% 80%, rgba(63, 224, 198, 0.10), transparent 40%),
-    var(--bg-deep);
+  /* Card fica na lateral esquerda, na mesma posição aproximada da referência */
+  justify-content: flex-start;
+  padding-left: 8%;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Vídeo de fundo cobrindo a tela inteira, em loop contínuo */
+.auth-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* Faixa de demarcação: do início da tela até ~34% (onde ficava a linha vermelha
+   de referência) o vídeo fica desfocado/escurecido; depois disso, visível puro. */
+.auth-bg-blur {
+  position: absolute;
+  inset: 0;
+  width: 34%;
+  height: 100%;
+  z-index: 1;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  background: rgba(0, 0, 0, 0.45);
+  /* transição suave na borda direita da faixa, em vez de um corte seco */
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 
 .auth-card {
+  position: relative;
+  z-index: 2;
   width: 380px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 36px;
+}
+
+/* Esquema preto e branco pedido: fundo preto, todas as linhas/textos brancos */
+.auth-card--mono {
+  background: #000;
+  border: 1px solid #fff;
+  color: #fff;
+}
+.auth-card--mono .auth-brand-mark {
+  background: #fff;
+  color: #000;
+}
+.auth-card--mono .auth-brand h1 {
+  color: #fff;
+}
+.auth-card--mono .auth-tagline {
+  color: rgba(255, 255, 255, 0.7);
+}
+.auth-card--mono .auth-form label {
+  color: rgba(255, 255, 255, 0.85);
+}
+.auth-card--mono input {
+  background: #000;
+  border: 1px solid #fff;
+  color: #fff;
+}
+.auth-card--mono input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+.auth-card--mono input:focus {
+  border-color: #fff;
+  box-shadow: 0 0 0 1px #fff;
+}
+.auth-card--mono .btn-primary {
+  background: #fff;
+  color: #000;
+}
+.auth-card--mono .btn-primary:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+.auth-card--mono .auth-error {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid #fff;
+}
+.auth-card--mono .auth-switch {
+  color: #fff;
 }
 
 .auth-brand {
