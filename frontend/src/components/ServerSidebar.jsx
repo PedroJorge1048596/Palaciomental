@@ -2,7 +2,7 @@ import { useState } from "react";
 import Avatar from "./Avatar.jsx";
 import Modal from "./Modal.jsx";
 
-export default function ServerSidebar({ servers, activeServer, viewingDms, onSelect, onCreate, onJoin, onOpenDms, onLogout }) {
+export default function ServerSidebar({ servers, activeServer, viewingDms, onSelect, onCreate, onJoin, onOpenDms, onLogout, theme, onCycleTheme }) {
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [name, setName] = useState("");
@@ -41,6 +41,13 @@ export default function ServerSidebar({ servers, activeServer, viewingDms, onSel
       </button>
       <button className="server-icon server-icon--action" title="Entrar com convite" onClick={() => setShowJoin(true)}>
         ↵
+      </button>
+      <button
+        className="server-icon server-icon--action server-icon--theme"
+        title={`Tema: ${{ default: "Padrão", dark: "Escuro", light: "Claro" }[theme]} — clique para trocar`}
+        onClick={onCycleTheme}
+      >
+        {{ default: "◐", dark: "☾", light: "☀" }[theme]}
       </button>
 
       <div className="server-rail-spacer" />

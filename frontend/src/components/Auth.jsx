@@ -7,6 +7,7 @@ export default function Auth({ onAuth }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const audioRef = useRef(null);
 
   // Assim que a tela de login aparece, toca a música tema em volume médio.
@@ -54,6 +55,7 @@ export default function Auth({ onAuth }) {
     try {
       const fn = mode === "login" ? api.login : api.register;
       const data = await fn(username, password);
+      setLeaving(true); // dispara o fade visual (via CSS) em paralelo com o fade da música
       await fadeOutAudio();
       onAuth(data);
     } catch (err) {
@@ -63,7 +65,7 @@ export default function Auth({ onAuth }) {
   }
 
   return (
-    <div className="auth-screen">
+    <div className={`auth-screen ${leaving ? "auth-screen--leaving" : ""}`}>
       <video
         className="auth-bg-video"
         src="/auth-bg.mp4"

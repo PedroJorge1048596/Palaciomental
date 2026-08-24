@@ -16,6 +16,13 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Enquanto isso for true, não renderizamos nem a tela de login nem o app —
+  // evita o "flash" da tela de app (ex: "você não tem servidores") antes de
+  // sabermos se o token salvo ainda é válido.
+  const [checkingAuth, setCheckingAuth] = useState(() => !!localStorage.getItem("agora-auth"));
+
+  const [theme, setTheme] = useState(() => localStorage.getItem("agora-theme") || "default");
+
   const [servers, setServers] = useState([]);
   const [activeServer, setActiveServer] = useState(null);
   const [channels, setChannels] = useState([]);
@@ -42,9 +49,50 @@ export default function App() {
     activeServerIdRef.current = activeServer?.id ?? null;
   }, [activeServer]);
 
-  // Conecta o socket assim que autenticado
+  // Aplica o tema escolhido na tag <html> (é onde as variáveis de cor do CSS
+  // são resolvidas) e lembra a escolha entre visitas.
   useEffect(() => {
-    if (!auth) return;
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("agora-theme", theme);
+  }, [theme]);
+
+  function cycleTheme() {
+    setTheme((prev) => (prev === "default" ? "dark" : prev === "dark" ? "light" : "default"));
+  }
+
+  // Corrige o caso em que o token salvo no navegador continua "assinado
+  // corretamente" (então passaria pelo requireAuth do backend) mas o usuário
+  // dele já não existe mais no banco — ex: o Render reiniciou o serviço e o
+  // banco (sem disco persistente) voltou vazio. Sem essa checagem, a pessoa
+  // não caía na tela de login: caía direto na tela de "nenhum servidor",
+  // porque a lista de servidores dela simplesmente vinha vazia.
+  useEffect(() => {
+    let cancelled = false;
+    if (!auth) {
+      setCheckingAuth(false);
+      return;
+    }
+    api
+      .getMe(auth.token)
+      .catch(() => {
+        if (!cancelled) {
+          localStorage.removeItem("agora-auth");
+          setAuth(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingAuth(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Conecta o socket assim que autenticado — só depois que a sessão foi
+  // confirmada válida contra o backend (checkingAuth === false), senão
+  // chegaríamos a conectar com um token que já sabemos estar morto.
+  useEffect(() => {
+    if (!auth || checkingAuth) return;
     const socket = connectSocket(auth.token);
     loadServers();
 
@@ -75,7 +123,7 @@ export default function App() {
       socket.off("server:removed", handleServerRemoved);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.token]);
+  }, [auth?.token, checkingAuth]);
 
   // Mantém voiceChannel em sincronia sempre que o usuário navega para um canal de voz.
   // Não é limpo quando ele volta para um canal de texto — é isso que mantém a call viva.
@@ -170,6 +218,7 @@ export default function App() {
     setMembers((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
   }
 
+  if (checkingAuth) return <div className="loading-screen">Carregando…</div>;
   if (!auth) return <Auth onAuth={handleAuth} />;
 
   const currentUser = auth.user;
@@ -188,6 +237,8 @@ export default function App() {
         onJoin={joinServer}
         onOpenDms={() => setViewingDms(true)}
         onLogout={logout}
+        theme={theme}
+        onCycleTheme={cycleTheme}
       />
 
       {viewingDms ? (
